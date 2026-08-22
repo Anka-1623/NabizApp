@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">NabizApp</string>
+    <string name="accessibility_service_description">NABIZ, bahis/kumar uygulaması kullanımını tespit ederek fizyolojik uyarılma sinyaliyle birleştirir ve gerektiğinde erken müdahale önerir. Sadece cihaz üzerinde çalışır, veri sunucuya gönderilmez.</string>
 </resources>

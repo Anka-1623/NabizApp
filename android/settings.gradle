@@ -4,3 +4,9 @@ extensions.configure(com.facebook.react.ReactSettingsExtension){ ex -> ex.autoli
 rootProject.name = 'NabizApp'
 include ':app'
 includeBuild('../node_modules/@react-native/gradle-plugin')
+
+// react-native-mmkv (v4) Nitro-modules'a bağımlı ama react-native-nitro-modules kendi
+// react-native.config.js/autolinking metadata'sına sahip değil — RN CLI autolinker'ı bu yüzden
+// otomatik eklemiyor, elle include edilmesi gerekiyor (Margelo Nitro Modules'ın bilinen bir kurulum adımı).
+include(':react-native-nitro-modules')
+project(':react-native-nitro-modules').projectDir = file('../node_modules/react-native-nitro-modules/android')

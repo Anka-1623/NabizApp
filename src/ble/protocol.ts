@@ -28,7 +28,7 @@ export enum ConfigCommand {
 /**
  * PhysioPacket wire format — 9 bayt, little-endian, firmware'in aggregate() çıktısı:
  *   [0-1]  avgIbiMs   uint16  — batch içindeki ortalama nabız-arası aralık (ms)
- *   [2-3]  gsrRaw     uint16  — ham ADC okuması (0-4095, GPIO34)
+ *   [2-3]  gsrRaw     uint16  — ham ADC okuması (0-4095, D0/GPIO1)
  *   [4-5]  tempCentiC int16   — sıcaklık * 100 (DS18B20)
  *   [6-7]  accelMagMg uint16  — ivme büyüklüğü, milli-g (MPU6050)
  *   [8]    sampleCount uint8  — bu batch'te aggregate edilen ham örnek sayısı

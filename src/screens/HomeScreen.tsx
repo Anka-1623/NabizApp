@@ -31,6 +31,7 @@ const TIER_LABEL: Record<Tier, string> = {
 export default function HomeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const bleStatus = useNabizStore((s) => s.bleStatus);
+  const bandLowBattery = useNabizStore((s) => s.bandLowBattery);
   const accessibilityEnabled = useNabizStore((s) => s.accessibilityEnabled);
   const fusion = useNabizStore((s) => s.fusion);
   const start = useNabizStore((s) => s.start);
@@ -86,6 +87,9 @@ export default function HomeScreen({ navigation }: Props) {
           <Text style={styles.hintText}>
             Bandı bileğinize takıp Bluetooth'un açık olduğundan emin olun — otomatik aranıyor.
           </Text>
+        )}
+        {bandConnected && bandLowBattery && (
+          <Text style={styles.hintTextWarn}>Bandın pili azalıyor — yakında şarj edin.</Text>
         )}
       </View>
 
@@ -183,6 +187,7 @@ const styles = StyleSheet.create({
   statusLabel: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.inkSubtle },
   statusValue: { fontFamily: fonts.displayMedium, fontSize: 18, marginTop: 4 },
   hintText: { fontFamily: fonts.body, fontSize: 12, color: colors.inkSubtle, marginTop: 6, lineHeight: 17 },
+  hintTextWarn: { fontFamily: fonts.bodyMedium, fontSize: 12, color: colors.coral, marginTop: 6, lineHeight: 17 },
   dot: { width: 8, height: 8, borderRadius: 4 },
   dotOk: { backgroundColor: colors.success },
   dotWarn: { backgroundColor: colors.coral },

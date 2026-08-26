@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { nabizBle, BleConnectionStatus } from '../ble/BleManager';
+import { BandEventCode } from '../ble/protocol';
 import { accessibilityBridge } from '../native/AccessibilityBridge';
 import { physioBaselineEngine } from '../engine/PhysioBaselineEngine';
 import { fusionEngine } from '../engine/FusionEngine';
@@ -8,6 +9,7 @@ import { BehavioralRiskEvent, FusionResult, Tier } from '../types/nabiz';
 
 interface NabizState {
   bleStatus: BleConnectionStatus;
+  bandLowBattery: boolean;
   accessibilityEnabled: boolean;
   fusion: FusionResult;
   consentGiven: boolean;
@@ -34,6 +36,7 @@ let lastLoggedTier: Tier = Tier.NONE;
 
 export const useNabizStore = create<NabizState>((set, get) => ({
   bleStatus: 'idle',
+  bandLowBattery: false,
   accessibilityEnabled: false,
   fusion: initialFusion,
   consentGiven: false,
@@ -62,14 +65,25 @@ export const useNabizStore = create<NabizState>((set, get) => ({
     if (get().started) return;
     set({ started: true });
 
-    nabizBle.setStatusListener((status) => set({ bleStatus: status }));
+    nabizBle.setStatusListener((status) => {
+      // Yeni bağlantı kurulunca eski düşük-pil uyarısını temizle — band değişmiş/şarj edilmiş olabilir,
+      // gerçek durum bir sonraki LOW_BATTERY event'iyle zaten güncellenecek.
+      if (status === 'connected') {
+        set({ bleStatus: status, bandLowBattery: false });
+      } else {
+        set({ bleStatus: status });
+      }
+    });
     nabizBle.setPhysioListener((sample) => {
       physioBaselineEngine.ingest(sample);
       fusionEngine.updatePhysio(physioBaselineEngine.computeArousalState());
     });
-    nabizBle.setEventListener(() => {
-      // CALIBRATION_COMPLETE / LOW_BATTERY vb. — Bölüm 17'deki tek-tap "gerginlik mi heyecan mı?"
-      // etiketleme akışı bu event'e bağlanabilir; ilk prototipte pasif log yeterli.
+    nabizBle.setEventListener((event) => {
+      if (event === BandEventCode.LOW_BATTERY) {
+        set({ bandLowBattery: true });
+      }
+      // CALIBRATION_STARTED/COMPLETE/MANUAL_BUTTON_LABEL — Bölüm 17'deki tek-tap "gerginlik mi
+      // heyecan mı?" etiketleme akışı bunlara bağlanabilir; ilk prototipte pasif log yeterli.
     });
 
     unsubscribeAccessibility = accessibilityBridge.subscribe((event: BehavioralRiskEvent) => {

@@ -277,8 +277,16 @@ kaydediliyor. Bu, KVKK biyometrik-veri riskini minimumda tutmak için bilinçli 
 (proje memory'sindeki regülatör bulgularına dayanıyor — Biyometrik Verilerin İşlenmesinde Dikkat
 Edilmesi Gereken Hususlara İlişkin Rehber).
 
-`encryptionKey: 'nabiz-local-diary-v1'` şu an sabit-kodlanmış — kod içinde `TODO: build öncesi
-cihaza-özel/keychain-türetilmiş anahtarla değiştirin` notu var, henüz yapılmadı.
+**Şifreleme anahtarı (2026-09-15 itibarıyla düzeltildi)**: artık sabit-kodlanmış değil.
+`src/storage/secureKey.ts` ilk açılışta `react-native-get-random-values` ile 256-bit rastgele bir
+anahtar üretip Android Keystore/iOS Keychain'e (`react-native-keychain`,
+`ACCESSIBLE.WHEN_UNLOCKED_THIS_DEVICE_ONLY`) yazıyor, sonraki açılışlarda aynısını okuyor. Anahtar
+async geldiği için `DiaryStore.init()` eklendi — `App.tsx` bunu açılışta bekleyip tamamlanmadan
+`RootNavigator`'ı render etmiyor (kısa bir boş splash `View` gösteriyor), böylece `DiaryScreen`/
+`useNabizStore` hiçbir zaman storage hazır olmadan senkron bir `DiaryStore` çağrısı yapamıyor.
+Jest'te her iki native modül de `__mocks__/react-native-keychain.js` (bellek-içi Map) ve
+`__mocks__/react-native-get-random-values.js` (no-op, Node'un kendi `crypto.getRandomValues`'u
+yeterli) ile taklit ediliyor.
 
 `getRelapseRiskSummary(days=7)`: son N gündeki kademe-bazlı tetiklenme sayılarını döndürür,
 `DiaryScreen`'in özet kartında kullanılıyor.
@@ -320,20 +328,31 @@ modülünü çalıştıramaz), React 19.2.3, Node engine `>=22.11.0`.
 Kilit paketler: `react-native-ble-plx@^3.5.1` (BLE), `react-native-mmkv@^4.3.2` (depolama, Nitro/
 JSI tabanlı — **v2/v3'ten farklı API, `new MMKV()` yok, `createMMKV()` var**, eski
 tutorial/StackOverflow cevapları geçersiz), `react-native-nitro-modules@^0.36.5`,
-`@react-navigation/native@^7` + `native-stack@^7`, `zustand@^5`.
+`react-native-keychain@^10` + `react-native-get-random-values@^2` (2026-09-15'te eklendi, §9'daki
+anahtar üretimi için), `@react-navigation/native@^7` + `native-stack@^7`, `zustand@^5`.
 
-**Doğrulanmış durum (2026-08-03 itibarıyla)**:
+**Doğrulanmış durum (2026-09-15 itibarıyla)**:
 - `tsc --noEmit`: temiz.
-- `eslint`: temiz (bir önemsiz inline-style uyarısı hariç).
+- `eslint`: temiz.
 - Jest: 14/14 test geçiyor (`FusionEngine.test.ts`, `PhysioBaselineEngine.test.ts` — 13 birim
   testi, kademe geçişleri + z-skoru/RMSSD matematiği el-hesabıyla doğrulanmış beklenen değerlere
   karşı; `__tests__/App.test.tsx` — RN template'in kendi smoke testi, tüm App→Navigator→ilk-ekran
   ağacını render ediyor).
-- **`android/app/build/outputs/apk/release/app-release.apk` mevcut** (71.5MB, 2026-08-02 18:45
-  tarihli) — yani gerçek bir Android release derlemesi **başarıyla tamamlanmış**. `versionCode 1`,
-  `versionName "1.0"`, `applicationId com.nabizapp`, release `signingConfig` şu an debug keystore'a
-  işaret ediyor (`build.gradle` satır 98/103) — jüri/gerçek dağıtım öncesi kendi imzalama
-  anahtarına geçirilmeli. Bu, Kotlin native modüllerin (AccessibilityService, BLE bridge) artık
+- **Release imzalama artık gerçek bir keystore'a işaret ediyor** (`android/app/nabiz-release.keystore`,
+  rastgele 24 baytlık parola, `android/keystore.properties`'te — ikisi de git'e commit edilmez,
+  bkz. `.gitignore` + `android/keystore.properties.example`). `build.gradle` artık
+  `keystore.properties` yoksa `assembleRelease`/`bundleRelease`'i **açıkça hata verip durduruyor**
+  (önceki davranış: release sessizce debug.keystore'a düşüyordu, fark edilmeden yanlış imzalı bir
+  APK üretebilirdi). Debug build'ler bu dosyadan etkilenmiyor, her zamanki gibi çalışıyor.
+  **Takım notu**: `nabiz-release.keystore` + `keystore.properties` bu makinede üretildi, sadece bu
+  oturumun dosya sisteminde duruyor — build'i başka bir makinede/CI'da almak isteyen biri aynı iki
+  dosyayı (veya kendi ürettiği yeni bir keystore'u) o makineye de koymalı, aksi halde release build
+  yukarıdaki hatayla durur. Kaybolursa `keystore.properties.example`'daki `keytool` komutuyla yeni
+  bir tane üretilebilir (sideload dağıtım modeli olduğu için — §11 devamı — bu, Play Store'daki gibi
+  "eski imzayla güncelleyemezsin" riski taşımıyor, sadece cihazlara yeniden sideload gerekir).
+- Bu oturumda `android/app/build/outputs/apk/release/app-release.apk` mevcuttu (71.5MB, 2026-08-02
+  tarihli, eski debug-imzalı) — yani daha önce gerçek bir Android release derlemesi
+  **başarıyla tamamlanmış**. Bu, Kotlin native modüllerin (AccessibilityService, BLE bridge) artık
   derleyici tarafından doğrulandığı anlamına geliyor — daha önceki bir oturumda "JDK/Android SDK
   yoktu, native taraf compiler'dan geçmedi" notu artık **eskimiş**, bu makinede Android SDK/JDK
   kurulmuş ve gerçek bir build alınmış durumda.
@@ -372,8 +391,8 @@ Firmware (ESP32/NimBLE-Arduino) tarafını üstlenecek herkes şunlara **birebir
   offline-kuyruk yok.
 - 2-5dk füzyon penceresi klinik olarak validasyonu tam yapılmamış bir varsayım (literatürle
   tutarlı ama doğrudan test edilmemiş).
-- `DiaryStore` şifreleme anahtarı sabit-kodlanmış, cihaza-özel anahtara geçirilmeli.
-- Release APK imzalama debug keystore kullanıyor, gerçek dağıtım öncesi değiştirilmeli.
+- ~~`DiaryStore` şifreleme anahtarı sabit-kodlanmış~~ — **düzeltildi (2026-09-15)**, §9'a bakın.
+- ~~Release APK imzalama debug keystore kullanıyor~~ — **düzeltildi (2026-09-15)**, §11'e bakın.
 - Cihaz üzerinde gerçek BLE eşleştirme/canlı sensör testi henüz yapılmadı (donanım bekleniyor).
 
 ## 14. İlgili dosyalar / önceki araştırma

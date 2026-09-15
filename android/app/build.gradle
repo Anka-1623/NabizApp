@@ -72,6 +72,29 @@ def enableProguardInReleaseBuilds = false
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+// Release imzalama: android/keystore.properties'ten okunur (git'e commit edilmez — bkz. .gitignore
+// + keystore.properties.example). Dosya yoksa release build'i AÇIKÇA hata verip durur — önceki
+// davranış (release'in debug.keystore'a sessizce düşmesi) jüri/gerçek dağıtım için fark edilmeden
+// yanlış imzalı bir APK üretebilirdi, bu yüzden kasıtlı olarak fail-fast.
+def keystorePropertiesFile = rootProject.file('keystore.properties')
+def keystoreProperties = new Properties()
+def hasReleaseKeystore = keystorePropertiesFile.exists()
+if (hasReleaseKeystore) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+// Sadece gerçekten bir "release" görevi çalıştırılmak istendiğinde (assembleRelease/bundleRelease
+// vb.) kontrol eder — debug build'ler keystore.properties olmadan da sorunsuz çalışmaya devam eder.
+gradle.taskGraph.whenReady { taskGraph ->
+    def wantsRelease = taskGraph.allTasks.any { it.name.toLowerCase().contains('release') }
+    if (wantsRelease && !hasReleaseKeystore) {
+        throw new GradleException(
+            "android/keystore.properties bulunamadı — release build debug.keystore ile sessizce " +
+            "imzalanmayacak. Kurulum için android/keystore.properties.example dosyasındaki adımları izleyin."
+        )
+    }
+}
+
 android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
@@ -92,15 +115,24 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        release {
+            // keystoreProperties boşsa (dosya yok) bu değerler null olur — signingConfig burada
+            // konfigüre edilir ama gerçekte İMZALAMAK İÇİN KULLANILMAZ, çünkü aşağıdaki
+            // taskGraph.whenReady kontrolü release görevini keystore eksikken zaten durduruyor.
+            // (Configuration-time'da referans verilebilmesi için bu blok her durumda var olmalı —
+            // Gradle DSL'i koşullu signingConfig bloğu tanımlamaya izin vermiyor.)
+            storeFile hasReleaseKeystore ? file(keystoreProperties['storeFile']) : file('debug.keystore')
+            storePassword hasReleaseKeystore ? keystoreProperties['storePassword'] : 'android'
+            keyAlias hasReleaseKeystore ? keystoreProperties['keyAlias'] : 'androiddebugkey'
+            keyPassword hasReleaseKeystore ? keystoreProperties['keyPassword'] : 'android'
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }

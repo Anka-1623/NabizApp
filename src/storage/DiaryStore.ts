@@ -1,18 +1,37 @@
-import { createMMKV } from 'react-native-mmkv';
+import { createMMKV, type MMKV } from 'react-native-mmkv';
 import { DiaryEntry, Tier } from '../types/nabiz';
+import { getOrCreateDiaryEncryptionKey } from './secureKey';
 
 // react-native-mmkv (v4, Nitro tabanlı) şifreli depolama — process-and-discard tasarımı:
 // ham sensör verisi (IBI/GSR/sıcaklık akışı) HİÇ diske yazılmaz, sadece kademe+zaman damgası kalır.
 // Bu, KVKK biyometrik-veri riskini en aza indirir (bkz. proje memory'sindeki regülatör bulguları).
-const storage = createMMKV({
-  id: 'nabiz-diary',
-  encryptionKey: 'nabiz-local-diary-v1', // TODO: build öncesi cihaza-özel/keychain-türetilmiş anahtarla değiştirin
-});
-
+//
+// Şifreleme anahtarı Keychain'den geldiği için (bkz. secureKey.ts) createMMKV çağrısı async bir
+// init() arkasında — App.tsx açılışta bunu bekleyip storage hazır olmadan navigator'ı render etmiyor,
+// bu yüzden aşağıdaki metodlar init() sonrası hep senkron kalabiliyor.
 const ENTRIES_KEY = 'diary_entries_v1';
 
+let storage: MMKV | null = null;
+let initPromise: Promise<void> | null = null;
+
+function init(): Promise<void> {
+  if (!initPromise) {
+    initPromise = getOrCreateDiaryEncryptionKey().then(encryptionKey => {
+      storage = createMMKV({ id: 'nabiz-diary', encryptionKey });
+    });
+  }
+  return initPromise;
+}
+
+function requireStorage(): MMKV {
+  if (!storage) {
+    throw new Error('DiaryStore kullanılmadan önce init() tamamlanmalı — App.tsx açılış sırasını kontrol edin.');
+  }
+  return storage;
+}
+
 function readAll(): DiaryEntry[] {
-  const raw = storage.getString(ENTRIES_KEY);
+  const raw = requireStorage().getString(ENTRIES_KEY);
   if (!raw) return [];
   try {
     return JSON.parse(raw) as DiaryEntry[];
@@ -22,10 +41,13 @@ function readAll(): DiaryEntry[] {
 }
 
 function writeAll(entries: DiaryEntry[]): void {
-  storage.set(ENTRIES_KEY, JSON.stringify(entries));
+  requireStorage().set(ENTRIES_KEY, JSON.stringify(entries));
 }
 
 export const DiaryStore = {
+  /** App.tsx açılışta bir kez çağırmalı — çözülene kadar diğer metodlar throw eder. */
+  init,
+
   /** Bir füzyon sonucunu günlüğe kaydeder — SADECE kademe+zaman(+opsiyonel etiket/not), ham veri yok. */
   logTierEvent(tier: Tier, userLabel?: DiaryEntry['userLabel'], note?: string): DiaryEntry {
     const entry: DiaryEntry = {
@@ -63,6 +85,6 @@ export const DiaryStore = {
   },
 
   clearAll(): void {
-    storage.remove(ENTRIES_KEY);
+    requireStorage().remove(ENTRIES_KEY);
   },
 };

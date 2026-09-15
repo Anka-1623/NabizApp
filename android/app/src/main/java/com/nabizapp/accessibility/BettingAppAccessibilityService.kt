@@ -18,12 +18,51 @@ class BettingAppAccessibilityService : AccessibilityService() {
 
     companion object {
         // AccessibilityBridgeModule (RN native modülü) başlatıldığında kendini buraya kaydeder.
-        // NOT / bilinen sınır: RN JS katmanı henüz ayakta değilse (örn. servis telefon açılışında
-        // JS bridge'den önce tetiklendiyse) bu null kalabilir ve olay JS'e ulaşmaz — kalıcı
-        // offline-kuyruk (WorkManager vb.) 6-8 haftalık prototip kapsamının dışında bırakıldı,
-        // gelecek çalışma olarak not edilsin.
+        // Servis telefon açılışında JS bridge'den önce tetiklenirse (soğuk-başlangıç yarışı) olaylar
+        // aşağıdaki bellek-içi `pendingEvents` kuyruğunda birikir ve listener bağlanır bağlanmaz
+        // sırayla iletilir — bu, dokümante edilmiş yarış durumunu kapatır. Bu kuyruk process
+        // ölümünde HAYATTA KALMAZ (disk'e yazılmaz); tam kalıcılık için WorkManager tabanlı bir
+        // kuyruk gerekir ama AccessibilityService'in process'i normalde uygulamayla birlikte yaşadığı
+        // için (bkz. MonitoringForegroundService) bu, 6-8 haftalık prototip kapsamında gereksiz bir
+        // ek karmaşıklık — gerçek ihtiyaç ortaya çıkarsa gelecek çalışma olarak bırakılıyor.
         @Volatile
-        var listener: BettingRiskListener? = null
+        private var _listener: BettingRiskListener? = null
+
+        var listener: BettingRiskListener?
+            get() = _listener
+            set(value) {
+                _listener = value
+                if (value != null) flushPendingEvents(value)
+            }
+
+        private const val MAX_PENDING_EVENTS = 50
+        private val pendingEvents = ArrayDeque<PendingEvent>()
+
+        private data class PendingEvent(
+            val packageName: String,
+            val domain: String?,
+            val eventType: String,
+            val patternScore: Double,
+        )
+
+        @Synchronized
+        private fun flushPendingEvents(target: BettingRiskListener) {
+            while (pendingEvents.isNotEmpty()) {
+                val e = pendingEvents.removeFirst()
+                target.onBettingRiskEvent(e.packageName, e.domain, e.eventType, e.patternScore)
+            }
+        }
+
+        @Synchronized
+        private fun dispatch(packageName: String, domain: String?, eventType: String, patternScore: Double) {
+            val currentListener = _listener
+            if (currentListener != null) {
+                currentListener.onBettingRiskEvent(packageName, domain, eventType, patternScore)
+            } else {
+                if (pendingEvents.size >= MAX_PENDING_EVENTS) pendingEvents.removeFirst()
+                pendingEvents.addLast(PendingEvent(packageName, domain, eventType, patternScore))
+            }
+        }
 
         val KNOWN_BETTING_PACKAGES: Set<String> = setOf(
             "com.iddaa.android",
@@ -77,7 +116,7 @@ class BettingAppAccessibilityService : AccessibilityService() {
         // Basit frekans-tabanlı örüntü skoru (0-1): pencerede 5+ kez ön-plana gelme = tam skor.
         val patternScore = (timestamps.size / 5.0).coerceAtMost(1.0)
 
-        listener?.onBettingRiskEvent(
+        dispatch(
             packageName = packageName,
             domain = matchedKeyword,
             eventType = if (isKnownBettingApp) "app_foreground" else "bet_pattern_detected",

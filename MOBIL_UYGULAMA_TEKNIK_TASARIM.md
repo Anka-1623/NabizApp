@@ -203,9 +203,15 @@ Olaylar `AccessibilityBridgeModule.kt` üzerinden `NativeEventEmitter` ile JS'e 
 (`NabizAccessibilityBettingRisk` event adı), JS tarafında `src/native/AccessibilityBridge.ts`
 bunu dinleyip `BehavioralRiskEvent` tipine sarıyor.
 
-**Bilinen sınır (kod yorumunda not edilmiş)**: eğer servis telefon açılışında JS bridge ayağa
-kalkmadan önce tetiklenirse `listener` null kalabilir ve olay JS'e ulaşmaz. Kalıcı offline-kuyruk
-(WorkManager vb.) 6-8 haftalık prototip kapsamı dışında bırakıldı.
+**Soğuk-başlangıç yarışı — düzeltildi (2026-09-15)**: eğer servis telefon açılışında JS bridge
+ayağa kalkmadan önce tetiklenirse, olaylar artık `BettingAppAccessibilityService` companion
+object'indeki bellek-içi `pendingEvents` kuyruğunda (en fazla 50, dolarsa en eski atılır) birikip
+`AccessibilityBridgeModule` `listener`'ını kaydettiği anda sırayla iletiliyor — event kaybı yok.
+**Sınır, dürüstçe**: bu kuyruk process ölümünde hayatta kalmaz (diske yazılmıyor); tam kalıcılık
+için WorkManager tabanlı bir kuyruk gerekir, ama servis'in process'i normalde uygulamayla birlikte
+yaşadığı için (`MonitoringForegroundService` bkz. §9) bu, mevcut kapsamda gereksiz ek karmaşıklık —
+gerçek ihtiyaç ortaya çıkarsa (ör. Android servisi OS tarafından öldürüp arka planda tek başına
+yeniden başlatırsa) gelecek çalışma olarak kalıyor.
 
 **Android 13+ "Restricted Settings" notu**: sideload edilen (Play Store dışı) uygulamalarda
 AccessibilityService, kullanıcı Ayarlar → Uygulamalar → Uygulama bilgisi → ⋮ menüsü → "Kısıtlanmış
@@ -387,8 +393,9 @@ Firmware (ESP32/NimBLE-Arduino) tarafını üstlenecek herkes şunlara **birebir
 - GSR kanalı motion-gate edilmiyor (§5) — hareket-tabanlı artefakt reddi sadece PPG/IBI için var.
 - Davranışsal sinyal hâlâ frekans-tabanlı bir yaklaşım — gerçek işlem tutarı/bahis miktarı okuma
   (erişilebilirlik ağacından) stretch-goal, yapılmadı.
-- AccessibilityService → JS köprüsünde JS bridge henüz ayakta değilse olay kaybolabilir, kalıcı
-  offline-kuyruk yok.
+- ~~AccessibilityService → JS köprüsünde JS bridge henüz ayakta değilse olay kaybolabilir~~ —
+  **düzeltildi (2026-09-15)**, bellek-içi kuyruk eklendi, §6'ya bakın. Diske yazan/process-ölümüne
+  dayanıklı tam kalıcı kuyruk (WorkManager) hâlâ yok — gerçek ihtiyaç çıkarsa gelecek çalışma.
 - 2-5dk füzyon penceresi klinik olarak validasyonu tam yapılmamış bir varsayım (literatürle
   tutarlı ama doğrudan test edilmemiş).
 - ~~`DiaryStore` şifreleme anahtarı sabit-kodlanmış~~ — **düzeltildi (2026-09-15)**, §9'a bakın.

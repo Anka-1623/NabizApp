@@ -32,6 +32,7 @@ export class NabizBleManager {
   private device: Device | null = null;
   private physioSub: Subscription | null = null;
   private eventSub: Subscription | null = null;
+  private manualScanning = false;
   private onStatusChange: (status: BleConnectionStatus) => void = () => {};
   private onPhysioSample: (sample: PhysioSample) => void = () => {};
   private onBandEvent: (event: BandEventCode) => void = () => {};
@@ -116,6 +117,54 @@ export class NabizBleManager {
         }
       });
     });
+  }
+
+  /**
+   * DeviceScanScreen için — scanAndConnect()'in aksine ilk bulunan NABIZ-* cihaza otomatik
+   * bağlanmaz, kullanıcı elle seçip eşleştirebilsin diye her bulunan cihazı callback'e verir.
+   * Servis UUID'siyle filtrelemiyoruz (tüm yakındaki BLE cihazları görünür) çünkü kullanıcı
+   * "yakındaki cihazları tara" istedi — NABIZ-* önekli olanlar ekranda öne çıkarılır.
+   */
+  async startScan(onDeviceFound: (device: Device) => void, onError?: (e: Error) => void): Promise<void> {
+    if (this.manualScanning) return;
+    const hasPerms = await this.requestAndroidPermissions();
+    if (!hasPerms) {
+      this.onStatusChange('error');
+      onError?.(new Error('BLE izinleri verilmedi'));
+      return;
+    }
+    try {
+      await this.waitForPoweredOn();
+    } catch (e) {
+      onError?.(e instanceof Error ? e : new Error(String(e)));
+      return;
+    }
+
+    this.manualScanning = true;
+    this.onStatusChange('scanning');
+    this.plx.startDeviceScan(null, null, (error, scannedDevice) => {
+      if (error) {
+        this.manualScanning = false;
+        onError?.(error);
+        return;
+      }
+      if (scannedDevice && scannedDevice.name) {
+        onDeviceFound(scannedDevice);
+      }
+    });
+  }
+
+  stopScan(): void {
+    if (!this.manualScanning) return;
+    this.plx.stopDeviceScan();
+    this.manualScanning = false;
+  }
+
+  /** DeviceScanScreen'de kullanıcı bir cihaza dokununca çağrılır — otomatik scanAndConnect()'in
+   * kullandığı aynı bağlanma/GATT-keşif/notify-abonelik akışını paylaşır (tek doğruluk kaynağı). */
+  async connectToDeviceManually(device: Device): Promise<void> {
+    this.stopScan();
+    await this.connectToDevice(device);
   }
 
   private async connectToDevice(scannedDevice: Device): Promise<void> {

@@ -5,6 +5,8 @@ function createMMKV() {
   return {
     set: (key, value) => store.set(key, String(value)),
     getString: (key) => store.get(key),
+    getBoolean: (key) => (store.has(key) ? store.get(key) === 'true' : undefined),
+    getNumber: (key) => (store.has(key) ? Number(store.get(key)) : undefined),
     remove: (key) => store.delete(key),
     clearAll: () => store.clear(),
   };

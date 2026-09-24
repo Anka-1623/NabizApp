@@ -42,7 +42,10 @@ export const useNabizStore = create<NabizState>((set, get) => ({
   consentGiven: false,
   started: false,
 
-  giveConsent: () => set({ consentGiven: true }),
+  giveConsent: () => {
+    DiaryStore.setConsent(true);
+    set({ consentGiven: true });
+  },
 
   refreshAccessibilityStatus: async () => {
     const enabled = await accessibilityBridge.isServiceEnabled();

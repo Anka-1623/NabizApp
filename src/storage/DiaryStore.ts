@@ -10,6 +10,7 @@ import { getOrCreateDiaryEncryptionKey } from './secureKey';
 // init() arkasında — App.tsx açılışta bunu bekleyip storage hazır olmadan navigator'ı render etmiyor,
 // bu yüzden aşağıdaki metodlar init() sonrası hep senkron kalabiliyor.
 const ENTRIES_KEY = 'diary_entries_v1';
+const CONSENT_KEY = 'consent_given_v1';
 
 let storage: MMKV | null = null;
 let initPromise: Promise<void> | null = null;
@@ -86,5 +87,15 @@ export const DiaryStore = {
 
   clearAll(): void {
     requireStorage().remove(ENTRIES_KEY);
+  },
+
+  /** OnboardingConsentScreen'in iki switch'i — bir kez verilince her açılışta tekrar sorulmasın.
+   *  Aynı şifreli MMKV örneğini kullanıyor (ayrı bir store açmaya değmeyecek kadar küçük bir bayrak). */
+  hasConsent(): boolean {
+    return requireStorage().getBoolean(CONSENT_KEY) ?? false;
+  },
+
+  setConsent(value: boolean): void {
+    requireStorage().set(CONSENT_KEY, value);
   },
 };

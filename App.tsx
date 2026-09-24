@@ -8,6 +8,7 @@ import { StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import RootNavigator from './src/navigation/RootNavigator';
 import { DiaryStore } from './src/storage/DiaryStore';
+import { useNabizStore } from './src/store/useNabizStore';
 import { colors } from './src/theme';
 
 const styles = StyleSheet.create({
@@ -22,7 +23,12 @@ function App() {
   const [diaryReady, setDiaryReady] = useState(false);
 
   useEffect(() => {
-    DiaryStore.init().finally(() => setDiaryReady(true));
+    DiaryStore.init().finally(() => {
+      // Onboarding'in iki switch'i daha önce açıldıysa (hasConsent), RootNavigator ilk render'ında
+      // bunu okuyup başlangıç ekranini Home'a atlıyor — her açılışta yeniden rıza sormasın.
+      useNabizStore.setState({ consentGiven: DiaryStore.hasConsent() });
+      setDiaryReady(true);
+    });
   }, []);
 
   if (!diaryReady) {

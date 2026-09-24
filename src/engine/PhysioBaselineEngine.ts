@@ -3,7 +3,10 @@ import type { PhysioArousalState, PhysioBaselineState, PhysioSample } from '../t
 // Bölüm 17/Bulgu 3 (teammate audit): tek seferlik sabit kalibrasyon yerine KAYAN taban çizgisi.
 // Son 24-48 saatteki düşük-hareket pencerelerinden ortalama alınır, günlük güncellenir.
 const BASELINE_WINDOW_MS = 48 * 60 * 60 * 1000;
-const LOW_MOTION_ACCEL_THRESHOLD_MG = 150; // MPU6050 ivme büyüklüğü, mg — bu altı "düşük hareket" sayılır
+// NabizFirmware/SensorHub.h kMotionGateMg ile aynı sabit ve aynı yerçekimi-ofsetli karşılaştırma:
+// dinlenme durumunda ivme büyüklüğü ~1000mg'dir (1g), 0 değil — |accel-1000mg| eşiği kullanılmalı.
+const LOW_MOTION_ACCEL_THRESHOLD_MG = 150;
+const REST_ACCEL_MAG_MG = 1000;
 const MIN_BASELINE_SAMPLES = 30; // ilk ~2dk dinlenme kalibrasyonunun kabaca karşılığı
 const AROUSAL_Z_THRESHOLD = 2.0; // 2 sigma — kalibre edilebilir sabit, sabit mutlak eşik DEĞİL
 
@@ -78,7 +81,7 @@ export class PhysioBaselineEngine {
     );
 
     // Baseline penceresi: sadece düşük-hareket örnekleri, trailing 48s
-    if (sample.accelMagMilliG <= LOW_MOTION_ACCEL_THRESHOLD_MG) {
+    if (Math.abs(sample.accelMagMilliG - REST_ACCEL_MAG_MG) <= LOW_MOTION_ACCEL_THRESHOLD_MG) {
       this.baseline.windowSamples.push(sample);
     }
     this.baseline.windowSamples = this.baseline.windowSamples.filter(

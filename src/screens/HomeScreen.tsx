@@ -75,7 +75,9 @@ export default function HomeScreen({ navigation }: Props) {
         <Text style={styles.subtitle}>Kumarkalkanı erken uyarı sistemi</Text>
       </View>
 
-      <View style={styles.statusCard}>
+      <Pressable
+        style={({ pressed }) => [styles.statusCard, pressed && styles.statusCardPressed]}
+        onPress={() => navigation.navigate('DeviceScan')}>
         <View style={styles.statusRow}>
           <Text style={styles.statusLabel}>Bilek bandı</Text>
           <View style={[styles.dot, bandConnected ? styles.dotOk : styles.dotWarn]} />
@@ -91,7 +93,8 @@ export default function HomeScreen({ navigation }: Props) {
         {bandConnected && bandLowBattery && (
           <Text style={styles.hintTextWarn}>Bandın pili azalıyor — yakında şarj edin.</Text>
         )}
-      </View>
+        <Text style={styles.linkButtonText}>Bluetooth cihazlarını tara / elle eşleştir →</Text>
+      </Pressable>
 
       <View style={styles.statusCard}>
         <View style={styles.statusRow}>
@@ -183,6 +186,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     ...shadow.e1,
   },
+  statusCardPressed: { backgroundColor: colors.surface3 },
   statusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   statusLabel: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.inkSubtle },
   statusValue: { fontFamily: fonts.displayMedium, fontSize: 18, marginTop: 4 },

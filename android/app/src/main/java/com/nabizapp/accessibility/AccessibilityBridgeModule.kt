@@ -67,7 +67,19 @@ class AccessibilityBridgeModule(reactContext: ReactApplicationContext) :
 
     @ReactMethod
     fun openAccessibilitySettings() {
+        // Düz ACTION_ACCESSIBILITY_SETTINGS genel listeyi açıyor — kullanıcı NabizApp'i
+        // onlarca servis arasında bulup açması gerekiyor, bu adım kolayca unutuluyordu
+        // (kullanıcı geri bildirimi). ":settings:fragment_args_key" AOSP Ayarlar'ın (ve çoğu
+        // OEM'in) resmi olmayan ama yaygın kullanılan bir sözleşmesi: hedef bileşeni ekstra
+        // olarak verince Ayarlar o satırı doğrudan açıp/vurgulayarak gösteriyor. Garanti değil
+        // (OEM'e göre değişebilir) — desteklemeyen cihazlarda sessizce genel listeye düşer.
+        val componentName =
+            "${reactApplicationContext.packageName}/com.nabizapp.accessibility.BettingAppAccessibilityService"
         val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+        intent.putExtra(":settings:fragment_args_key", componentName)
+        val bundle = android.os.Bundle()
+        bundle.putString(":settings:fragment_args_key", componentName)
+        intent.putExtra(":settings:show_fragment_args", bundle)
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         reactApplicationContext.startActivity(intent)
     }

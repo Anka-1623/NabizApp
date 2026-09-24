@@ -9,8 +9,9 @@ import {
   decodePhysioPacket,
   decodeBandEvent,
   encodeStartCalibration,
+  encodeSetTier,
 } from './protocol';
-import type { BandEventCode } from './protocol';
+import type { BandEvent } from './protocol';
 import type { PhysioSample } from '../types/nabiz';
 
 export type BleConnectionStatus =
@@ -35,7 +36,7 @@ export class NabizBleManager {
   private manualScanning = false;
   private onStatusChange: (status: BleConnectionStatus) => void = () => {};
   private onPhysioSample: (sample: PhysioSample) => void = () => {};
-  private onBandEvent: (event: BandEventCode) => void = () => {};
+  private onBandEvent: (event: BandEvent) => void = () => {};
 
   setStatusListener(cb: (status: BleConnectionStatus) => void) {
     this.onStatusChange = cb;
@@ -45,7 +46,7 @@ export class NabizBleManager {
     this.onPhysioSample = cb;
   }
 
-  setEventListener(cb: (event: BandEventCode) => void) {
+  setEventListener(cb: (event: BandEvent) => void) {
     this.onBandEvent = cb;
   }
 
@@ -214,6 +215,17 @@ export class NabizBleManager {
       NABIZ_SERVICE_UUID,
       CHAR_CONFIG_UUID,
       encodeStartCalibration(),
+    );
+  }
+
+  /** Ana ekrandaki uzaktan kademe seçimi butonları için — saati fiilen o kademeye geçirir
+   *  (yalnızca yerel/telefon-içi simülasyon değil, gerçek bant SET_TIER komutunu alır). */
+  async setTier(tierIndex: number): Promise<void> {
+    if (!this.device) throw new Error('Band bağlı değil');
+    await this.device.writeCharacteristicWithResponseForService(
+      NABIZ_SERVICE_UUID,
+      CHAR_CONFIG_UUID,
+      encodeSetTier(tierIndex),
     );
   }
 

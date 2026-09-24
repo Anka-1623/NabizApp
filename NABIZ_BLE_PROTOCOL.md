@@ -31,14 +31,14 @@ Firmware tarafında Bölüm 9'daki `loop()` her 1-5sn'de bir bu paketi `ble.noti
 ile göndermeli. HRV (RMSSD/SDNN) **telefon tarafında** ham IBI dizisinden hesaplanır — ESP32'ye
 istatistik gömülmez (bkz. `src/engine/PhysioBaselineEngine.ts`).
 
-## CHAR_EVENT — 1 bayt
+## CHAR_EVENT — 1-2 bayt
 
-| Değer | Anlam                  |
-|-------|--------------------------|
-| 0x01  | Manuel buton etiketi     |
-| 0x02  | Kalibrasyon başladı       |
-| 0x03  | Kalibrasyon tamamlandı    |
-| 0x04  | Düşük batarya             |
+| Değer | Anlam                  | Ekstra bayt                                              |
+|-------|--------------------------|------------------------------------------------------------|
+| 0x01  | Manuel buton etiketi     | bayt 1: etiket indeksi (0=Gergin/1=Heyecanlı/2=Fark etmedim) |
+| 0x02  | Kalibrasyon başladı       | —                                                            |
+| 0x03  | Kalibrasyon tamamlandı    | —                                                            |
+| 0x04  | Düşük batarya             | —                                                            |
 
 ## CHAR_CONFIG — telefon → band, Write
 
@@ -46,6 +46,7 @@ istatistik gömülmez (bkz. `src/engine/PhysioBaselineEngine.ts`).
 |--------|--------------------------|----------------------------------------|
 | 0x01   | START_CALIBRATION        | —                                       |
 | 0x02   | SET_SAMPLE_INTERVAL_MS    | bayt 1-2: uint16 little-endian, ms      |
+| 0x03   | SET_TIER                 | bayt 1: Tier (0=Normal/1/2/3) — mobil appten uzaktan kademe seçimi |
 
 ## Kalibrasyon davranışı (firmware sorumluluğu)
 

@@ -23,6 +23,7 @@ export enum BandEventCode {
 export enum ConfigCommand {
   START_CALIBRATION = 0x01,
   SET_SAMPLE_INTERVAL_MS = 0x02, // + 2 bayt little-endian interval
+  SET_TIER = 0x03, // + 1 bayt: Tier index (0=Normal/1/2/3) — uzaktan kademe seçimi
 }
 
 /**
@@ -48,9 +49,19 @@ export function decodePhysioPacket(base64Value: string, timestampMs: number): Ph
   };
 }
 
-export function decodeBandEvent(base64Value: string): BandEventCode {
+export interface BandEvent {
+  code: BandEventCode;
+  // Yalnızca MANUAL_BUTTON_LABEL'de dolu — 0=Gergin/1=Heyecanlı/2=Fark etmedim.
+  label?: number;
+}
+
+export function decodeBandEvent(base64Value: string): BandEvent {
   const buf = Buffer.from(base64Value, 'base64');
-  return buf.readUInt8(0) as BandEventCode;
+  const code = buf.readUInt8(0) as BandEventCode;
+  if (code === BandEventCode.MANUAL_BUTTON_LABEL && buf.length >= 2) {
+    return { code, label: buf.readUInt8(1) };
+  }
+  return { code };
 }
 
 export function encodeStartCalibration(): string {
@@ -62,4 +73,8 @@ export function encodeSampleInterval(intervalMs: number): string {
   buf.writeUInt8(ConfigCommand.SET_SAMPLE_INTERVAL_MS, 0);
   buf.writeUInt16LE(intervalMs, 1);
   return buf.toString('base64');
+}
+
+export function encodeSetTier(tierIndex: number): string {
+  return Buffer.from([ConfigCommand.SET_TIER, tierIndex]).toString('base64');
 }

@@ -20,6 +20,8 @@ interface NabizState {
   refreshAccessibilityStatus: () => Promise<void>;
   requestCalibration: () => Promise<void>;
   acknowledgeIntervention: (label?: 'nervous' | 'excited' | 'neutral' | 'craving') => void;
+  /** Ana ekrandaki uzaktan kademe düğmeleri için — gerçek bandı da o kademeye geçirir. */
+  setBandTier: (tierIndex: number) => Promise<void>;
 }
 
 const initialFusion: FusionResult = {
@@ -64,6 +66,10 @@ export const useNabizStore = create<NabizState>((set, get) => ({
     set({ fusion: fusionEngine.evaluate() });
   },
 
+  setBandTier: async (tierIndex) => {
+    await nabizBle.setTier(tierIndex); // fırlarsa çağıran taraf (HomeScreen) yakalayıp gösterir
+  },
+
   start: async () => {
     if (get().started) return;
     set({ started: true });
@@ -82,11 +88,18 @@ export const useNabizStore = create<NabizState>((set, get) => ({
       fusionEngine.updatePhysio(physioBaselineEngine.computeArousalState());
     });
     nabizBle.setEventListener((event) => {
-      if (event === BandEventCode.LOW_BATTERY) {
+      if (event.code === BandEventCode.LOW_BATTERY) {
         set({ bandLowBattery: true });
+      } else if (event.code === BandEventCode.MANUAL_BUTTON_LABEL && event.label !== undefined) {
+        // Bandın K1 ekranındaki etiket çiplerine dokunulunca gelir — mobil InterventionScreen'in
+        // dismiss(label) çağrısıyla aynı DiaryStore girişini üretir, ama fusionEngine.reset()
+        // ÇAĞIRMAZ: bu event telefonun kendi fusion.tier'ından bağımsız (bant kendi Kademe 1
+        // ekranına gizli köşe jestiyle de girmiş olabilir), bu yüzden pasif bir günlük kaydı
+        // yeterli (bkz. Bölüm 17/Bulgu 1).
+        const LABELS = ['nervous', 'excited', 'neutral'] as const;
+        DiaryStore.logTierEvent(Tier.T1_AWARENESS, LABELS[event.label] ?? null);
       }
-      // CALIBRATION_STARTED/COMPLETE/MANUAL_BUTTON_LABEL — Bölüm 17'deki tek-tap "gerginlik mi
-      // heyecan mı?" etiketleme akışı bunlara bağlanabilir; ilk prototipte pasif log yeterli.
+      // CALIBRATION_STARTED/COMPLETE — ilk prototipte pasif log yeterli, henüz UI'a bağlı değil.
     });
 
     unsubscribeAccessibility = accessibilityBridge.subscribe((event: BehavioralRiskEvent) => {

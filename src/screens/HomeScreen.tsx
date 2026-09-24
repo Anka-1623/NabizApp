@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert, AppState } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
@@ -37,7 +37,9 @@ export default function HomeScreen({ navigation }: Props) {
   const start = useNabizStore((s) => s.start);
   const refreshAccessibilityStatus = useNabizStore((s) => s.refreshAccessibilityStatus);
   const requestCalibration = useNabizStore((s) => s.requestCalibration);
+  const setBandTier = useNabizStore((s) => s.setBandTier);
   const [calibrating, setCalibrating] = useState(false);
+  const [settingTier, setSettingTier] = useState<number | null>(null);
 
   const bandConnected = bleStatus === 'connected';
 
@@ -55,6 +57,20 @@ export default function HomeScreen({ navigation }: Props) {
     }
   };
 
+  const handleSetBandTier = async (tierIndex: number) => {
+    setSettingTier(tierIndex);
+    try {
+      await setBandTier(tierIndex);
+    } catch (e) {
+      Alert.alert(
+        'Kademe gönderilemedi',
+        e instanceof Error ? e.message : 'Bilek bandıyla iletişim kurulamadı. Bağlantıyı kontrol edip tekrar deneyin.',
+      );
+    } finally {
+      setSettingTier(null);
+    }
+  };
+
   useEffect(() => {
     start();
   }, [start]);
@@ -64,6 +80,16 @@ export default function HomeScreen({ navigation }: Props) {
       navigation.navigate('Intervention');
     }
   }, [fusion.tier, navigation]);
+
+  // "Erişilebilirlik ayarlarını aç"tan sonra kullanıcı Ayarlar'da servisi açıp geri dönünce
+  // durumun anında güncellenmesi için — sabit setTimeout(1500) yerine gerçek foreground
+  // dönüşünü dinliyoruz (kullanıcı geri bildirimi: sabit gecikme unutulup kaçırılıyordu).
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refreshAccessibilityStatus();
+    });
+    return () => sub.remove();
+  }, [refreshAccessibilityStatus]);
 
   return (
     <ScrollView
@@ -105,13 +131,12 @@ export default function HomeScreen({ navigation }: Props) {
           {accessibilityEnabled ? 'Aktif' : 'Kapalı'}
         </Text>
         {!accessibilityEnabled && (
-          <Pressable
-            style={styles.linkButton}
-            onPress={() => {
-              accessibilityBridge.openSettings();
-              setTimeout(refreshAccessibilityStatus, 1500);
-            }}>
-            <Text style={styles.linkButtonText}>Erişilebilirlik ayarlarını aç →</Text>
+          // Android'de erişilebilirlik servisi tek dokunuşla açılamıyor (Ayarlar'a gitmek
+          // zorunlu, OS kısıtı) — openSettings() artık doğrudan bu servisin satırını
+          // vurgulamayı DENİYOR (bkz. AccessibilityBridgeModule.kt), genel listede kaybolup
+          // unutulma riskini azaltmak için. Dönüşte durum AppState dinleyicisiyle otomatik yenilenir.
+          <Pressable style={styles.linkButton} onPress={() => accessibilityBridge.openSettings()}>
+            <Text style={styles.linkButtonText}>Erişilebilirlik iznini ver →</Text>
           </Pressable>
         )}
       </View>
@@ -126,6 +151,30 @@ export default function HomeScreen({ navigation }: Props) {
           <Text style={styles.metaDivider}>·</Text>
           <Text style={styles.metaText}>z(GSR) {fusion.physio.zScoreGsr.toFixed(2)}</Text>
         </View>
+      </View>
+
+      <View style={styles.tierControlCard}>
+        <Text style={styles.statusLabel}>Bant kademesini uzaktan ayarla</Text>
+        <View style={styles.tierControlRow}>
+          {([Tier.NONE, Tier.T1_AWARENESS, Tier.T2_FRICTION, Tier.T3_FULL_INTERVENTION] as const).map(
+            (tierIndex) => (
+              <Pressable
+                key={tierIndex}
+                disabled={!bandConnected || settingTier !== null}
+                style={({ pressed }) => [
+                  styles.tierControlButton,
+                  (!bandConnected || settingTier !== null) && styles.buttonDisabled,
+                  pressed && bandConnected && styles.tierControlButtonPressed,
+                ]}
+                onPress={() => handleSetBandTier(tierIndex)}>
+                <Text style={styles.tierControlButtonText}>
+                  {tierIndex === Tier.NONE ? 'Normal' : `Kademe ${tierIndex}`}
+                </Text>
+              </Pressable>
+            ),
+          )}
+        </View>
+        {!bandConnected && <Text style={styles.hintText}>Bant bağlanınca aktif olur.</Text>}
       </View>
 
       <Pressable
@@ -211,6 +260,25 @@ const styles = StyleSheet.create({
   metaRow: { flexDirection: 'row', alignItems: 'center', marginTop: spacing.sm, flexWrap: 'wrap' },
   metaText: { fontFamily: fonts.mono, fontSize: 12, color: colors.brand200 },
   metaDivider: { fontSize: 12, color: colors.brand600, marginHorizontal: 6 },
+
+  tierControlCard: {
+    backgroundColor: colors.surface2,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  tierControlRow: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
+  tierControlButton: {
+    flexGrow: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    backgroundColor: colors.surface3,
+    borderRadius: radius.sm,
+  },
+  tierControlButtonPressed: { backgroundColor: colors.accentSoft },
+  tierControlButtonText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.ink },
 
   button: {
     backgroundColor: colors.accent,

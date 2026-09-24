@@ -7,7 +7,7 @@ function sample(overrides: Partial<PhysioSample>): PhysioSample {
     ibiMs: 800,
     gsrRaw: 1000,
     tempC: 36,
-    accelMagMilliG: 50, // düşük hareket — baseline penceresine girer
+    accelMagMilliG: 1000, // dinlenme (~1g, yerçekimi) — düşük hareket, baseline penceresine girer
     sampleCount: 1,
     ...overrides,
   };
@@ -41,10 +41,10 @@ describe('PhysioBaselineEngine — kayan taban çizgisi + z-skoru, Bölüm 17/Bu
     for (let i = 0; i < 35; i++) {
       engine.ingest(sample({ timestampMs: tenMinAgo + i * 100, ibiMs: 800, gsrRaw: 1000 }));
     }
-    // Yüksek hareket (accelMag=300) → bu örnek baseline'a KARIŞMAZ, sadece kısa-vadeli
-    // tampona girer — kendi kendini kirletmeden saf bir z-skoru testi.
+    // Yüksek hareket (|accel-1000mg| eşiğin dışında) → bu örnek baseline'a KARIŞMAZ, sadece
+    // kısa-vadeli tampona girer — kendi kendini kirletmeden saf bir z-skoru testi.
     engine.ingest(
-      sample({ timestampMs: Date.now(), ibiMs: 600, gsrRaw: 1400, accelMagMilliG: 300 }),
+      sample({ timestampMs: Date.now(), ibiMs: 600, gsrRaw: 1400, accelMagMilliG: 1400 }),
     );
     const state = engine.computeArousalState();
     expect(state.isAroused).toBe(true);
@@ -59,10 +59,10 @@ describe('PhysioBaselineEngine — kayan taban çizgisi + z-skoru, Bölüm 17/Bu
       engine.ingest(sample({ timestampMs: tenMinAgo + i * 100, ibiMs: 800, gsrRaw: 1000 }));
     }
     const now = Date.now();
-    // accelMag=300 → baseline'ı bozmaz, sadece RMSSD/HR hesabı için kısa-vadeli tamponu besler.
-    engine.ingest(sample({ timestampMs: now - 2000, ibiMs: 800, accelMagMilliG: 300 }));
-    engine.ingest(sample({ timestampMs: now - 1000, ibiMs: 820, accelMagMilliG: 300 }));
-    engine.ingest(sample({ timestampMs: now, ibiMs: 780, accelMagMilliG: 300 }));
+    // Yüksek hareket → baseline'ı bozmaz, sadece RMSSD/HR hesabı için kısa-vadeli tamponu besler.
+    engine.ingest(sample({ timestampMs: now - 2000, ibiMs: 800, accelMagMilliG: 1400 }));
+    engine.ingest(sample({ timestampMs: now - 1000, ibiMs: 820, accelMagMilliG: 1400 }));
+    engine.ingest(sample({ timestampMs: now, ibiMs: 780, accelMagMilliG: 1400 }));
 
     const state = engine.computeArousalState();
     // RMSSD([800,820,780]) = sqrt(mean([20^2, (-40)^2])) = sqrt(1000) ≈ 31.6227766

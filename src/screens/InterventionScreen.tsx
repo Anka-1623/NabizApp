@@ -9,7 +9,8 @@ import { colors, fonts, radius, spacing, shadow } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Intervention'>;
 
-const YEDAM_HOTLINE = '444 79 75';
+// Yeşilay Danışmanlık Merkezi (YEDAM) danışma hattı — eski hatların yerine 115'e taşındı.
+const YEDAM_HOTLINE = '115';
 
 function BreathingCircle() {
   const scale = useRef(new Animated.Value(1)).current;

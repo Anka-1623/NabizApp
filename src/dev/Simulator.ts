@@ -16,7 +16,7 @@ function lowMotionSample(overrides: Partial<PhysioSample> = {}, atMs: number): P
     ibiMs: 800,
     gsrRaw: 1000,
     tempC: 36,
-    accelMagMilliG: 50,
+    accelMagMilliG: 1000,
     sampleCount: 1,
     ...overrides,
   };
